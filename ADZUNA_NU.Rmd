@@ -1,0 +1,53 @@
+---
+title: "ADZUNA Job Salary Prediction"
+output: html_document
+---
+
+Group project - Northwestern Uni
+
+ADZUNA Job Salary Prediction
+This project is a former Kaggle competition. Here is the problem description from the Kaggle website.
+https://www.kaggle.com/c/job-salary-prediction
+
+Problem Description
+ADZUNA wants to build a prediction engine for the salary of any UK job ad, so they can make huge
+improvements in the experience of users searching for jobs, and help employers and jobseekers
+figure out the market worth of different positions. At the moment, approximately half of the UK job
+ads they index have a salary publicly displayed. They need your help to bring more transparency to
+this important market.
+
+Adzuna has a large dataset (hundreds of thousands of records), which is mostly unstructured text,
+with a few structured data fields. These can be in a number of different formats because of the
+hundreds of different sources of records. Adzuna needs the help of the Kaggle community to figure
+out the best techniques to apply to this data set to build a highly accurate predictive model for new
+ads. You will build, train and test your salary prediction engines against a wide field of
+competitors.
+
+As an added perk, Adzuna intends to implement their chosen model on their website, both in the UK
+and worldwide. You will have the satisfaction of seeing your work implemented in production and
+change the way people search for jobs in the future.
+Successful models will incorporate some analysis of the impact of including different keywords or
+phrases, as well as making use of the structured data fields like location, hours or company. Some of
+the structured data shown (such as category) is 'inferred' by Adzuna's own processes, based on where
+an ad came from or its contents, and may not be "correct" but is representative of the real data.
+You will be provided with a training data set on which to build your model, which will include all
+variables including salary. A second data set will be used to provide feedback on the public
+leaderboard. After approximately 6 weeks, Kaggle will release a final data set that does not include
+the salary field to participants, who will then be required to submit their salary predictions against
+each job for evaluation.
+
+
+```{r}
+adzuna = read.csv('~/Dropbox/NU/ADVANCED_MODELING/ADZUNA/datasets/Train_rev1.csv')
+train = sample(1:nrow(adzuna),nrow(adzuna)*0.25) # 5% of total obs to begin manipulating the 
+tr.adz = subset(adzuna, data=train)
+head(tr.adz)
+table(adzuna$Category) # see jobs by Category...
+```
+
+```{r}
+head(adzuna)
+trail(adzuna)
+
+```
+
