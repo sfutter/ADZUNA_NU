@@ -3,18 +3,11 @@ title: "ADZUNA Job Salary Prediction"
 output: html_document
 ---
 
-Group project - Northwestern Uni
+Group project - Northwestern University
 
-ADZUNA Job Salary Prediction
-This project is a former Kaggle competition. Here is the problem description from the Kaggle website.
-https://www.kaggle.com/c/job-salary-prediction
+ADZUNA Job Salary Prediction: https://www.kaggle.com/c/job-salary-prediction
 
-Problem Description
-ADZUNA wants to build a prediction engine for the salary of any UK job ad, so they can make huge
-improvements in the experience of users searching for jobs, and help employers and jobseekers
-figure out the market worth of different positions. At the moment, approximately half of the UK job
-ads they index have a salary publicly displayed. They need your help to bring more transparency to
-this important market.
+Problem Description:ADZUNA wants to build a prediction engine for the salary of any UK job ad
 
 Adzuna has a large dataset (hundreds of thousands of records), which is mostly unstructured text,
 with a few structured data fields. These can be in a number of different formats because of the
@@ -23,31 +16,73 @@ out the best techniques to apply to this data set to build a highly accurate pre
 ads. You will build, train and test your salary prediction engines against a wide field of
 competitors.
 
-As an added perk, Adzuna intends to implement their chosen model on their website, both in the UK
-and worldwide. You will have the satisfaction of seeing your work implemented in production and
-change the way people search for jobs in the future.
 Successful models will incorporate some analysis of the impact of including different keywords or
-phrases, as well as making use of the structured data fields like location, hours or company. Some of
-the structured data shown (such as category) is 'inferred' by Adzuna's own processes, based on where
-an ad came from or its contents, and may not be "correct" but is representative of the real data.
-You will be provided with a training data set on which to build your model, which will include all
-variables including salary. A second data set will be used to provide feedback on the public
-leaderboard. After approximately 6 weeks, Kaggle will release a final data set that does not include
-the salary field to participants, who will then be required to submit their salary predictions against
-each job for evaluation.
+phrases, as well as making use of the structured data fields like location, hours or company. The structured data shown (such as category) is 'inferred' by Adzuna's own processes, based on where an ad came from or its contents, and may not be "correct" but is representative of the real data.
+
 
 
 ```{r}
 adzuna = read.csv('~/Dropbox/NU/ADVANCED_MODELING/ADZUNA/datasets/Train_rev1.csv')
-train = sample(1:nrow(adzuna),nrow(adzuna)*0.25) # 5% of total obs to begin manipulating the 
-tr.adz = subset(adzuna, data=train)
-head(tr.adz)
-table(adzuna$Category) # see jobs by Category...
+```
+
+The variable 'FullDescription' is quite large since it contains a high volume of unstructured text data. Although this column contains valuable data that needs to be parsed we start by dropping it from the adzuna data set so that a data quality check can be performed on all training file observations. In addition there are some duplicate columns in the adzuna data set, so we remove them below.
+
+```{r}
+# Since the file is too large with the text columns we remove the following columns
+dropCols = which(names(adzuna) %in% c('FullDescription', 'LocationRaw', 'SalaryRaw'))
+s.adzuna = adzuna[,-dropCols]
+
+# new data set has 9 columns instead of 12
+dim(s.adzuna)  # 244768 x 9
+
+# remove $ expansion need on columns
+attach(adzuna)
+```
+
+
+### Data Quality Check
+The adzuna data set consists of 244,768 observations across 9 variables. The variables consist of unstructured text data (Title, FullDescription), categorical data (LocationNormalized, ContractType, ContractTime, Company, Category, SourceName), one numerical variable (salaryNormalized) and Id. Let's get a sense of the data before we begin. We run the summary() function on the new data.frame. 
+
+```{r}
+summary(s.adzuna)
+```
+
+
+#### Missing Data, Data Ranges, and Distributions
+Some variables that have many missing values:
+ContractType: 179326 missing
+ContractTime:  63905 missing and 
+Company     :  32430 missing
+
+
+As above in the summary() function the mean salary of 34,123 is slightly higher than the median salary of 30,000 and the density plot of normalized salary is positively skewed. 
+```{r}
+hist(s.adzuna$SalaryNormalized,col="blue",main='Frequency of Salaries', xlab='Salary') 
+```
+
+
+```{r}
+library('lattice')
+histogram(~ SalaryNormalized | factor(Category), data = s.adzuna)
+histogram(~ SalaryNormalized | factor(ContractType), data = s.adzuna)
+histogram(~ SalaryNormalized | factor(ContractTime), data = s.adzuna)
+```
+
+
+
+```{r}
+library('dplyr')
+mean.salary = s.adzuna %>%         # treat %>% as a 'then' statement... 
+  group_by(Category) %>%
+  summarise(
+    salary = mean(SalaryNormalized),
+    n=n()
+  ) 
 ```
 
 ```{r}
-head(adzuna)
-trail(adzuna)
-
+arrange(mean.salary,desc(salary))
+arrange(mean.salary,desc(n))
 ```
 
+The majority of jobs are in the 'IT Jobs' category (38,483), followed by 'Engineering Jobs' (25,174), Account and Finance Jobs (21,846), Healthcare & Nursing Jobs (21,076), then Sales Jobs (17,272). The highest paying category is Energy, Oil & Gas Jobs with a mean salary of 45653.09. The lowest...
