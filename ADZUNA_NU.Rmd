@@ -23,22 +23,32 @@ phrases, as well as making use of the structured data fields like location, hour
 
 ```{r}
 adzuna = read.csv('~/Dropbox/NU/ADVANCED_MODELING/ADZUNA/datasets/Train_rev1.csv')
+names(adzuna)
+head(adzuna)
 ```
 
 The variable 'FullDescription' is quite large since it contains a high volume of unstructured text data. Although this column contains valuable data that needs to be parsed we start by dropping it from the adzuna data set so that a data quality check can be performed on all training file observations. In addition there are some duplicate columns in the adzuna data set, so we remove them below.
 
 ```{r}
 # Since the file is too large with the text columns we remove the following columns
-dropCols = which(names(adzuna) %in% c('FullDescription', 'LocationRaw', 'SalaryRaw'))
+dropCols = which(names(adzuna) %in% c('FullDescription', 'SalaryRaw'))
 s.adzuna = adzuna[,-dropCols]
 
 # new data set has 9 columns instead of 12
-dim(s.adzuna)  # 244768 x 9
+dim(s.adzuna)  # 244768 x 10
 
 # remove $ expansion need on columns
 attach(adzuna)
 ```
 
+
+The strsplit(a, ",")
+```{r}
+#install.packages('splitstackshape')
+library(splitstackshape)
+names(s.adzuna)
+cSplit(s.adzuna, "LocationRaw", ",")
+```
 
 ### Data Quality Check
 The adzuna data set consists of 244,768 observations across 9 variables. The variables consist of unstructured text data (Title, FullDescription), categorical data (LocationNormalized, ContractType, ContractTime, Company, Category, SourceName), one numerical variable (salaryNormalized) and Id. Let's get a sense of the data before we begin. We run the summary() function on the new data.frame. 
@@ -60,12 +70,15 @@ As above in the summary() function the mean salary of 34,123 is slightly higher 
 hist(s.adzuna$SalaryNormalized,col="blue",main='Frequency of Salaries', xlab='Salary') 
 ```
 
-
+Positively skewed distributions can be found across nearly all job categories. It appears that we will need to take the log of SalaryNormalized to produce optimal results. 
 ```{r}
 library('lattice')
 histogram(~ SalaryNormalized | factor(Category), data = s.adzuna)
-histogram(~ SalaryNormalized | factor(ContractType), data = s.adzuna)
-histogram(~ SalaryNormalized | factor(ContractTime), data = s.adzuna)
+```
+
+Compared to the log of SalaryNormalized:
+```{r}
+histogram(~ log(SalaryNormalized) | factor(Category), data=s.adzuna)
 ```
 
 
@@ -86,3 +99,22 @@ arrange(mean.salary,desc(n))
 ```
 
 The majority of jobs are in the 'IT Jobs' category (38,483), followed by 'Engineering Jobs' (25,174), Account and Finance Jobs (21,846), Healthcare & Nursing Jobs (21,076), then Sales Jobs (17,272). The highest paying category is Energy, Oil & Gas Jobs with a mean salary of 45653.09. The lowest...
+
+The Dotplot below traces all regions in the UK with over 100 job postings by average salary. London is not surprisingly the highest paid region. Of note is Aberdeen. Further research is needed to see why Aberdeen's average salary is as high as it is. 
+```{r}
+it.jobs.only = s.adzuna %>%         # treat %>% as a 'then' statement... 
+  group_by(Category,LocationNormalized) %>%
+  summarise(
+    salary = mean(SalaryNormalized),
+    n=n()
+  ) %>% 
+  filter(Category=='IT Jobs') %>%
+  filter(n>100) %>%
+  arrange(desc(salary))
+it.jobs.only
+
+dotplot(reorder(LocationNormalized,salary) ~ salary, data = it.jobs.only, scales = list(y = list(relation="free")))
+
+```
+
+
