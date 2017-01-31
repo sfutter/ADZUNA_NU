@@ -27,6 +27,9 @@ names(adzuna)
 head(adzuna)
 ```
 
+Spend some time here investigating R's text mining package, tm.
+
+
 The variable 'FullDescription' is quite large since it contains a high volume of unstructured text data. Although this column contains valuable data that needs to be parsed we start by dropping it from the adzuna data set so that a data quality check can be performed on all training file observations. In addition there are some duplicate columns in the adzuna data set, so we remove them below.
 
 ```{r}
