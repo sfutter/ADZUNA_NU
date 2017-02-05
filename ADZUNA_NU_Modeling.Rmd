@@ -1,0 +1,52 @@
+---
+title: "ADZUNA Job Salary Prediction Modeling Begin"
+output: html_document
+---
+
+```{r}
+adzuna = read.csv('~/Dropbox/NU/ADVANCED_MODELING/ADZUNA_NU/adzuna.csv', nrow=100)
+head(adzuna)
+dim(adzuna)
+```
+
+Data Transformation Step: Log Of SalaryNormalized
+```{r}
+adzuna['log.salary'] = log(adzuna['SalaryNormalized'])
+attach(adzuna)
+```
+
+
+```{r}
+# I use a trick here to break out the categorical variables into binary 1/0 values
+adzunaMatrix = data.frame(model.matrix(log.salary~., adzuna))
+
+# add back the log.price variable
+adzunaMatrix = cbind(log.salary,adzunaMatrix)
+adzuna = adzunaMatrix
+
+# let's also remove price so that there is no confusion as to which response variable should be used
+dropIdx = which(names(adzuna) %in% c("Id","SalaryNormalized","X.Intercept.","X"))
+adzuna = adzuna[,-dropIdx]
+```
+
+Let's build a backward regression model
+```{r}
+library(leaps)
+regfit.bwd = regsubsets(log.salary~., data=adzuna, method='backward')
+summary(regfit.bwd)
+```
+
+THIS DIDN'T WORK on 5000 rows: Try a Tree Model
+```{r}
+require(rpart)
+require(rattle)
+require(rpart.plot)
+dropIdx1 = which(names(adzuna) %in% c("Id", "SalaryNormalized")) # remove priceCut variable as this will throw off the results
+adzuna = adzuna[,-dropIdx1]
+
+
+# Plot a more reasonable tree
+form <- as.formula(logsalary ~ .)
+tree <- rpart(form,adzuna)               # A more reasonable tree
+fancyRpartPlot(tree)                      # A fancy plot from rattle
+```
