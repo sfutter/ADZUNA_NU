@@ -1,0 +1,93 @@
+---
+title: "Neural Nets"
+output: html_document
+---
+NEURAL NET ON THE ADZUNA DATA SET
+Based upon code found in the following [article](https://www.r-bloggers.com/fitting-a-neural-network-in-r-neuralnet-package/)
+
+```{r}
+#adzuna = read.csv('~/Dropbox/NU/ADVANCED_MODELING/ADZUNA/datasets/train_add_tfidf_keywordfreq_jun_long.csv',fileEncoding = "latin1", nrow=5000)
+adzuna = read.csv('/sscc/home/s/sfg643/pred454/train_add_tfidf_keywordfreq_jun_long.csv',nrow=5000,encoding='latin1')
+dropIdx1 = which(names(adzuna) %in% c("Id")) 
+adzuna = adzuna[,-dropIdx1]
+attach(adzuna)
+
+# Break out the categorical variables into binary 1/0 values
+m = data.frame(model.matrix(SALARYNORM~., adzuna))
+
+# add back the log.price variable
+adzunaMatrix = cbind(SALARYNORM,m)
+adzuna = adzunaMatrix
+
+# let's also remove price so that there is no confusion as to which response variable should be used
+dropIdx = which(names(adzuna) %in% c("X.Intercept."))
+adzuna = adzuna[,-dropIdx]
+
+head(adzuna)
+str(adzuna)
+
+
+# ensure that variables are numeric for the centering to work as input to neural net
+adzuna$SALARYNORM = as.integer(adzuna$SALARYNORM)
+#adzuna$ABILITY_tfidf = as.integer(adzuna$ABILITY_tfidf)
+#adzuna$ABILITY_kwfreq = as.integer(adzuna$ABILITY_kwfreq)
+
+# create copy of data for testing purposes
+data <- adzuna
+
+# Check for missing vals
+apply(data,2,function(x) sum(is.na(x)))
+```
+
+```{r}
+dim(data)
+set.seed(500)
+index <- sample(1:nrow(data),round(0.75*nrow(data)))
+
+train <- data[index,]
+test <- data[-index,]
+
+```
+
+```{r}
+maxs <- apply(data, 2, max) 
+mins <- apply(data, 2, min)
+
+scaled <- as.data.frame(scale(data, center = mins, scale = maxs - mins))
+
+train_ <- scaled[index,]
+test_ <- scaled[-index,]
+```
+
+```{r}
+#install.packages('neuralnet')
+# dim(train_) # is 5390
+library(neuralnet)
+n <- names(train_)
+f <- as.formula(paste("SALARYNORM ~", paste(n[!n %in% "SALARYNORM"], collapse = " + ")))
+# 5000 * 2/3 = 3333
+nn <- neuralnet(f,data=train_,hidden=c(3000,2000),linear.output=T)
+```
+
+
+```{r}
+#plot(nn)
+```
+
+```{r}
+dim(test_)
+str(test_)
+colmax = dim(test_)[2] - 1
+
+pr.nn <- compute(nn,test_[,1:colmax]) # just has to be less than number of cols in test_. can write var store to avoid manual entry
+
+pr.nn_ <- pr.nn$net.result*(max(data$SALARYNORM)-min(data$SALARYNORM))+min(data$SALARYNORM)
+test.r <- (test_$SALARYNORM)*(max(data$SALARYNORM)-min(data$SALARYNORM))+min(data$SALARYNORM)
+
+MSE.nn <- sum((test.r - pr.nn_)^2)/nrow(test_)
+```
+
+Output MSE
+```{r}
+print(paste(MSE.nn))
+```

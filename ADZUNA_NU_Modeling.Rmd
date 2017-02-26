@@ -4,9 +4,12 @@ output: html_document
 ---
 
 ```{r}
-adzuna = read.csv('~/Dropbox/NU/ADVANCED_MODELING/ADZUNA_NU/adzuna.csv', nrow=100)
+
+adzuna = read.csv('~/Dropbox/NU/ADVANCED_MODELING/ADZUNA_NU/adzuna.csv', nrow=500)
+#adzuna = read.csv('~/Dropbox/NU/ADVANCED_MODELING/ADZUNA/datasets/train_add_tfidf_keywordfreq_jun_long.csv',fileEncoding = "latin1", nrow=500)
 head(adzuna)
-dim(adzuna)
+
+
 ```
 
 Data Transformation Step: Log Of SalaryNormalized
@@ -17,36 +20,237 @@ attach(adzuna)
 
 
 ```{r}
+# Let's start by reviewing the unigram column only and removing the bigram and trigram columns
+names(adzuna)
+incIdx = which(names(adzuna) %in% c("log.salary","trigram"))
+adzuna = adzuna[,incIdx]
+
+#dropIdx = which(names(adzuna) %in% c("unigram","bigram","Title","Company","locationnormalized","SourceName"))
+#c("unigram","bigram","trigram","Title","Company","locationnormalized","SourceName"))
+#adzuna = adzuna[,-dropIdx]
+head(adzuna)
 # I use a trick here to break out the categorical variables into binary 1/0 values
 adzunaMatrix = data.frame(model.matrix(log.salary~., adzuna))
 
 # add back the log.price variable
 adzunaMatrix = cbind(log.salary,adzunaMatrix)
 adzuna = adzunaMatrix
-
+names(adzuna)
 # let's also remove price so that there is no confusion as to which response variable should be used
-dropIdx = which(names(adzuna) %in% c("Id","SalaryNormalized","X.Intercept.","X"))
+#dropIdx = which(names(adzuna) %in% c("Id","SalaryNormalized","X.Intercept.","X"))
+dropIdx = which(names(adzuna) %in% c("X.Intercept.","X"))
 adzuna = adzuna[,-dropIdx]
+
+names(adzuna)
+head(adzuna,2)
+```
+
+Create training and test data sets
+```{r}
+smp.size = floor(0.7 * nrow(adzuna))
+set.seed(1)
+train = sample(seq_len(nrow(adzuna)), size = smp.size)
+test = -train
+adzuna.train = adzuna[train,]
+adzuna.test  = adzuna[-train,]
+```
+
+
+Let's start with a linear regression model
+```{r}
+lm.fit = lm(log.salary~.,data=adzuna.train)
+summary(lm.fit)
 ```
 
 Let's build a backward regression model
 ```{r}
-library(leaps)
-regfit.bwd = regsubsets(log.salary~., data=adzuna, method='backward')
-summary(regfit.bwd)
+#library(leaps)
+#regfit.bwd = regsubsets(log.salary~., data=adzuna.train, method='backward')
+#summary(regfit.bwd)
+
+### MODEL 1 Forward:
+fullmod = glm(log.salary ~ .,data=adzuna.train, family=gaussian)
+summary(fullmod)
+
+nothing <- glm(log.salary ~ 1,data=adzuna.train, family=gaussian)
+summary(nothing)
+
+### MODEL 1 Forward
+forwards = step(nothing,scope=list(lower=formula(nothing),upper=formula(fullmod)), direction="forward")
+formula(forwards)
+
+### MODEL 1 Backward
+backwards = step(fullmod) # Backwards selection is the default
+formula(backwards)
+
+### MODEL 1 Stepwise
+stepwise = step(nothing, list(lower=formula(nothing),upper=formula(fullmod)),direction="both")
+formula(stepwise)
+
+
 ```
 
-THIS DIDN'T WORK on 5000 rows: Try a Tree Model
+
+
+
+
+
+<!-- 3. TREE MODEL  -->
+<!-- ```{r} -->
+<!-- require(rpart) -->
+<!-- require(rattle) -->
+<!-- require(rpart.plot) -->
+<!-- dropIdx1 = which(names(adzuna) %in% c("Id", "SalaryNormalized")) # remove priceCut variable as this will throw off the results -->
+<!-- adzuna = adzuna[,-dropIdx1] -->
+
+
+<!-- # Plot a more reasonable tree -->
+<!-- form <- as.formula(logsalary ~ .) -->
+<!-- tree <- rpart(form,adzuna)               # A more reasonable tree -->
+<!-- fancyRpartPlot(tree)                      # A fancy plot from rattle -->
+<!-- ``` -->
+
+
+
+
+
+
+
+
+
+
+
+
+MODEL COMPARISON
+
+1. LINEAR REGRESSION MODEL
 ```{r}
-require(rpart)
-require(rattle)
-require(rpart.plot)
-dropIdx1 = which(names(adzuna) %in% c("Id", "SalaryNormalized")) # remove priceCut variable as this will throw off the results
-adzuna = adzuna[,-dropIdx1]
+yhat.lm.train = predict(lm.fit, newdata=adzuna.train)
+mean((yhat.lm.train-adzuna.train$log.salary)^2)       # MSE = 0.1486082668 (in-sample)
+
+yhat.lm.test = predict(lm.fit, newdata=adzuna.test)
+mean((yhat.lm.test-adzuna.test$log.salary)^2)         # MSE = 0.1548633289 (out-of-sample)
+```
+
+2a. FORWARD VARIABLE SELECTION MODEL
+```{r}
+yhat.fwd.train = predict(forwards, newdata=adzuna.train)
+mean((yhat.fwd.train-adzuna.train$log.salary)^2)       # MSE = 0.1799131494 (in-sample)
+
+yhat.fwd.test = predict(forwards, newdata=adzuna.test)
+mean((yhat.fwd.test-adzuna.test$log.salary)^2)         # MSE = 0.1803982561 (out-of-sample)
+```
+
+2b. BACKWARD VARIABLE SELECTION MODEL
+```{r}
+yhat.bwd.train = predict(backwards, newdata=adzuna.train)
+mean((yhat.bwd.train-adzuna.train$log.salary)^2)       # MSE = 0.1799144654 (in-sample)
+
+yhat.bwd.test = predict(backwards, newdata=adzuna.test)
+mean((yhat.bwd.test-adzuna.test$log.salary)^2)         # MSE = 0.1804014733 (out-of-sample)
+```
+
+2c. STEPWISE VARIABLE SELECTION MODEL
+```{r}
+yhat.stepwise.train = predict(stepwise, newdata=adzuna.train)
+mean((yhat.stepwise.train-adzuna.train$log.salary)^2)       # MSE = 0.1799144654 (in-sample)
+
+yhat.stepwise.test = predict(stepwise, newdata=adzuna.test)
+mean((yhat.stepwise.test-adzuna.test$log.salary)^2)         # MSE = 0.1804014733 (out-of-sample)
+```
 
 
-# Plot a more reasonable tree
-form <- as.formula(logsalary ~ .)
-tree <- rpart(form,adzuna)               # A more reasonable tree
-fancyRpartPlot(tree)                      # A fancy plot from rattle
+
+
+RMSE and MAE
+```{r}
+yhat.fwd.train.exp = exp(yhat.fwd.train) 
+salary.exp         = exp(adzuna.train$log.salary)
+
+# Function that returns Root Mean Squared Error
+rmse <- function(error)
+{
+    sqrt(mean(error^2))
+}
+ 
+# Function that returns Mean Absolute Error
+mae <- function(error)
+{
+    mean(abs(error))
+}
+ 
+
+# Calculate error
+error <- yhat.fwd.train.exp-salary.exp
+ 
+# Example of invocation of functions
+rmse(error)
+mae(error)
+```
+
+Let's see if we can apply a GA search optimization to the problem of which words to include in the final model. There are lots of new columns of data to add when we start looking at which 1, 2, 3 letter words appear most frequently. We can use the following code wittle down which columns are of predictive value:
+
+```{r}
+names(adzuna)
+
+lm.1 <- lm(log.salary ~ . , data=adzuna)
+
+# Extract the design matrix and drop the intercept;
+# This is a matrix of our predictor variables;
+X <- model.matrix(lm.1)[,-1];  # first column is the intercept
+
+# Extract the response vector;
+Y <- model.response(model.frame(lm.1));
+# head(model.frame(lm.1)) to view the header of the model frame;
+# The model frame is just a data frame of predictor variables and 
+# the response variable;
+head(model.frame(lm.1))
+
+# Write an R function to compute the model fitness;
+# Note that I have written this function slightly differently from the example;
+
+fitness.aic <- function(string){
+	inc <- which(string == 1);  # returns the columns to be 
+	X.inc <- cbind(1,X[,inc]);
+	lm.inc <- lm.fit(X.inc,Y);  # lm.fit is different to using lm(). 
+	class(lm.inc) <- 'lm';      # need to manually assign the lm.inc the lm class. 
+	value <- -AIC(lm.inc);      # give AIC the argument of a linear model it will give you the AIC. 
+	return(value)
+	}
+
+
+# Note that the smallest AIC is the best fit, hence we want to minimize the AIC;
+# The ga() function will maximize the fitness so we need to pose our problem correctly
+# with respect to maximizing fitness means maximizing the negative of the AIC.
+
+# From the look of this function we should be expecting string to be a binary string
+# consisting of 0 and 1 like 00001010101010.
+
+# Now use the ga() function to optimize the fitness() function and select a 
+# model based on AIC.
+library(GA)
+# library(UsingR)
+ga.aic <- ga('binary',fitness=fitness.aic,nBits=ncol(X),names=colnames(X),monitor=plot);
+plot(ga.aic)
+summary(ga.aic)
+names(adzuna)
+temp = ga.aic@solution
+temp2 = data.frame(temp)
+class(temp2)
+head(temp2)
+temp3 = t(temp2)
+colnames(temp3) = c('binary')
+temp3 = data.frame(temp3)
+class(temp3)
+temp4 = subset(temp3, binary=='1')
+temp4
+t(temp4)
+
+# Fit the solution using lm();
+lm.2 <- lm(body.fat.siri ~ age + weight + neck + abdomen + hip ++
+		+ thigh + forearm + wrist, data=fat);
+
+  summary(lm.2)
+AIC(lm.2)
+
 ```

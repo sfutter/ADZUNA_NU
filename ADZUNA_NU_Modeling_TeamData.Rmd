@@ -1,0 +1,108 @@
+---
+title: "ADZUNA Job Salary Prediction Modeling Begin Jun Long Input Data"
+author: "Steven Futter"
+date: "2/26/2017"
+output: html_document
+---
+
+```{r}
+adzuna.train = read.csv('~/Dropbox/NU/ADVANCED_MODELING/ADZUNA/datasets/train_add_tfidf_keywordfreq_jun_long.csv',fileEncoding = "latin1", nrow=500)
+head(adzuna.train)
+```
+
+Let's see if we can apply a GA search optimization to the problem of which words to include in the final model. There are lots of new columns of data to add when we start looking at which 1, 2, 3 letter words appear most frequently. We can use the following code wittle down which columns are of predictive value:
+
+```{r}
+names(adzuna)
+
+lm.1 <- lm(SALARYNORM ~ . , data=adzuna.train)
+
+# Extract the design matrix and drop the intercept;
+# This is a matrix of our predictor variables;
+X <- model.matrix(lm.1)[,-1];  # first column is the intercept
+
+# Extract the response vector;
+Y <- model.response(model.frame(lm.1));
+# head(model.frame(lm.1)) to view the header of the model frame;
+# The model frame is just a data frame of predictor variables and 
+# the response variable;
+head(model.frame(lm.1))
+
+# Write an R function to compute the model fitness;
+# Note that I have written this function slightly differently from the example;
+fitness.aic <- function(string){
+	inc <- which(string == 1);  # returns the columns to be 
+	X.inc <- cbind(1,X[,inc]);
+	lm.inc <- lm.fit(X.inc,Y);  # lm.fit is different to using lm(). 
+	class(lm.inc) <- 'lm';      # need to manually assign the lm.inc the lm class. 
+	value <- -AIC(lm.inc);      # give AIC the argument of a linear model it will give you the AIC. 
+	return(value)
+	}
+
+
+# Note that the smallest AIC is the best fit, hence we want to minimize the AIC;
+# The ga() function will maximize the fitness so we need to pose our problem correctly
+# with respect to maximizing fitness means maximizing the negative of the AIC.
+
+# From the look of this function we should be expecting string to be a binary string
+# consisting of 0 and 1 like 00001010101010.
+
+# Now use the ga() function to optimize the fitness() function and select a 
+# model based on AIC.
+library(GA)
+# library(UsingR)
+ga.aic <- ga('binary',fitness=fitness.aic,nBits=ncol(X),names=colnames(X),monitor=plot);
+plot(ga.aic)
+summary(ga.aic)
+names(adzuna)
+temp = ga.aic@solution
+temp2 = data.frame(temp)
+class(temp2)
+head(temp2)
+temp3 = t(temp2)
+colnames(temp3) = c('binary')
+temp3 = data.frame(temp3)
+class(temp3)
+temp4 = subset(temp3, binary=='1')
+temp4
+t(temp4)
+
+keepIdx = which(names(adzuna.train) %in% rownames(temp4))
+df.train = cbind(adzuna.train$SALARYNORM,adzuna.train[,keepIdx])
+df.train
+
+head(df.train)
+# Fit the solution using lm();
+lm.2 <- lm(adzuna.train$SALARYNORM ~ ., data=df.train);
+
+  summary(lm.2)
+AIC(lm.2)
+
+lm.2
+```
+
+
+RMSE and MAE
+```{r}
+
+# Function that returns Root Mean Squared Error
+rmse <- function(error)
+{
+    sqrt(mean(error^2))
+}
+ 
+# Function that returns Mean Absolute Error
+mae <- function(error)
+{
+    mean(abs(error))
+}
+ 
+
+# Calculate error
+error <- yhat.fwd.train.exp-salary.exp
+ 
+# Example of invocation of functions
+rmse(error)
+mae(error)
+```
+
