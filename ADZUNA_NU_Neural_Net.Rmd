@@ -15,7 +15,7 @@ attach(adzuna)
 # Break out the categorical variables into binary 1/0 values
 m = data.frame(model.matrix(SALARYNORM~., adzuna))
 
-# add back the log.price variable
+# add back the SALARYNORM variable
 adzunaMatrix = cbind(SALARYNORM,m)
 adzuna = adzunaMatrix
 
@@ -27,7 +27,7 @@ head(adzuna)
 str(adzuna)
 
 
-# ensure that variables are numeric for the centering to work as input to neural net
+# ensure that variables are numeric for the scaling needed for neural net (see below)
 adzuna$SALARYNORM = as.integer(adzuna$SALARYNORM)
 #adzuna$ABILITY_tfidf = as.integer(adzuna$ABILITY_tfidf)
 #adzuna$ABILITY_kwfreq = as.integer(adzuna$ABILITY_kwfreq)
@@ -71,6 +71,7 @@ nn <- neuralnet(f,data=train_,hidden=c(3000,2000),linear.output=T)
 
 
 ```{r}
+# Commenting out whilst building the optimal model. The build is not needed on each run through. 
 #plot(nn)
 ```
 
@@ -79,7 +80,7 @@ dim(test_)
 str(test_)
 colmax = dim(test_)[2] - 1
 
-pr.nn <- compute(nn,test_[,1:colmax]) # just has to be less than number of cols in test_. can write var store to avoid manual entry
+pr.nn <- compute(nn,test_[,1:colmax]) # just has to be less than number of cols in test_. See article write-up on this value. 
 
 pr.nn_ <- pr.nn$net.result*(max(data$SALARYNORM)-min(data$SALARYNORM))+min(data$SALARYNORM)
 test.r <- (test_$SALARYNORM)*(max(data$SALARYNORM)-min(data$SALARYNORM))+min(data$SALARYNORM)
