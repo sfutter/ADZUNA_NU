@@ -5,7 +5,7 @@ output: html_document
 
 ```{r}
 
-adzuna = read.csv('~/Dropbox/NU/ADVANCED_MODELING/ADZUNA_NU/adzuna.csv', nrow=500)
+adzuna = read.csv('~/Dropbox/NU/ADVANCED_MODELING/ADZUNA_NU/adzuna.csv')
 #adzuna = read.csv('~/Dropbox/NU/ADVANCED_MODELING/ADZUNA/datasets/train_add_tfidf_keywordfreq_jun_long.csv',fileEncoding = "latin1", nrow=500)
 head(adzuna)
 

@@ -22,13 +22,10 @@ phrases, as well as making use of the structured data fields like location, hour
 
 
 ```{r}
-adzuna = read.csv('~/Dropbox/NU/ADVANCED_MODELING/ADZUNA/datasets/Train_rev1.csv')
+adzuna = read.csv('~/Dropbox/NU/ADVANCED_MODELING/ADZUNA/datasets/Train_rev1.csv', nrow=500)
 names(adzuna)
 head(adzuna)
 ```
-
-Spend some time here investigating R's text mining package, tm.
-
 
 The variable 'FullDescription' is quite large since it contains a high volume of unstructured text data. Although this column contains valuable data that needs to be parsed we start by dropping it from the adzuna data set so that a data quality check can be performed on all training file observations. In addition there are some duplicate columns in the adzuna data set, so we remove them below.
 
@@ -45,13 +42,13 @@ attach(adzuna)
 ```
 
 
-The strsplit(a, ",")
-```{r}
-#install.packages('splitstackshape')
-library(splitstackshape)
-names(s.adzuna)
-cSplit(s.adzuna, "LocationRaw", ",")
-```
+<!-- The strsplit(a, ",") -->
+<!-- ```{r} -->
+<!-- #install.packages('splitstackshape') -->
+<!-- library(splitstackshape) -->
+<!-- names(s.adzuna) -->
+<!-- cSplit(s.adzuna, "LocationRaw", ",") -->
+<!-- ``` -->
 
 ### Data Quality Check
 The adzuna data set consists of 244,768 observations across 9 variables. The variables consist of unstructured text data (Title, FullDescription), categorical data (LocationNormalized, ContractType, ContractTime, Company, Category, SourceName), one numerical variable (salaryNormalized) and Id. Let's get a sense of the data before we begin. We run the summary() function on the new data.frame. 
@@ -84,16 +81,39 @@ Compared to the log of SalaryNormalized:
 histogram(~ log(SalaryNormalized) | factor(Category), data=s.adzuna)
 ```
 
-
+Another way to view the data median and IQR is via a boxplot. 
 
 ```{r}
+library(lattice)
+bwplot(SalaryNormalized, xlab="SalaryNormalized", main='Boxplot of SalaryNormalized')
+```
+
+Let's look at SalaryNormalized against Job Category via a boxplot below:
+```{r}
+bymedianCategory <- with(s.adzuna, reorder(Category, SalaryNormalized, median))
+head(bymedianCategory)
+bwplot(bymedianCategory~SalaryNormalized, xlab="SalaryNormalized", main='Boxplot of SalaryNormalized by Category')
+```
+   
+
+Let's look at SalaryNormalized against  via a boxplot below:
+   
+```{r}
 library('dplyr')
-mean.salary = s.adzuna %>%         # treat %>% as a 'then' statement... 
-  group_by(Category) %>%
+x = 1000
+locations.greater.x.obs = s.adzuna %>%         # treat %>% as a 'then' statement... 
+  group_by(LocationNormalized) %>%
   summarise(
-    salary = mean(SalaryNormalized),
     n=n()
-  ) 
+  ) %>%
+  filter(n>x)
+
+locations.greater.x.obs = locations.greater.x.obs$LocationNormalized
+s.adzuna.locations.greater.x.obs = s.adzuna %>% filter(LocationNormalized %in% locations.greater.x.obs)
+
+bymedianLocationNormalized <- with(s.adzuna.locations.greater.x.obs, reorder(LocationNormalized, SalaryNormalized, median))
+bwplot(bymedianLocationNormalized~s.adzuna.locations.greater.x.obs$SalaryNormalized, xlab="SalaryNormalized", main='Boxplot of SalaryNormalized by LocationNormalized')
+
 ```
 
 ```{r}

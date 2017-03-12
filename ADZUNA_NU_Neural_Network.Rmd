@@ -1,0 +1,155 @@
+---
+title: "H20"
+author: "Steven Futter"
+date: "2/28/2017"
+output: html_document
+---
+
+http://h2o-release.s3.amazonaws.com/h2o/rel-tverberg/5/index.html
+
+```{r}
+# The following two commands remove any previously installed H2O packages for R.
+if ("package:h2o" %in% search()) { detach("package:h2o", unload=TRUE) }
+if ("h2o" %in% rownames(installed.packages())) { remove.packages("h2o") }
+
+# Next, we download packages that H2O depends on.
+if (! ("methods" %in% rownames(installed.packages()))) { install.packages("methods") }
+if (! ("statmod" %in% rownames(installed.packages()))) { install.packages("statmod") }
+if (! ("stats" %in% rownames(installed.packages()))) { install.packages("stats") }
+if (! ("graphics" %in% rownames(installed.packages()))) { install.packages("graphics") }
+if (! ("RCurl" %in% rownames(installed.packages()))) { install.packages("RCurl") }
+if (! ("jsonlite" %in% rownames(installed.packages()))) { install.packages("jsonlite") }
+if (! ("tools" %in% rownames(installed.packages()))) { install.packages("tools") }
+if (! ("utils" %in% rownames(installed.packages()))) { install.packages("utils") }
+
+# Now we download, install and initialize the H2O package for R.
+install.packages("h2o", type="source", repos=(c("http://h2o-release.s3.amazonaws.com/h2o/rel-tverberg/5/R")))
+library(h2o)
+localH2O = h2o.init(nthreads=-1)
+
+# Finally, let's run a demo to see H2O at work.
+demo(h2o.kmeans)
+```
+
+
+TRAINING DATA
+```{r}
+# load the first 25% of the data set to 
+adzuna.train = read.csv('~/Dropbox/NU/ADVANCED_MODELING/ADZUNA/datasets/train_add_tfidf_keywordfreq_jun_long.csv',fileEncoding = "latin1")  #244768/4 #=61192
+dim(adzuna.train)
+head(adzuna.train)
+str(adzuna.train)
+
+# first thing we do is make sure that all columns after Category are listed as integer values.
+adzuna.train$ABILITY_tfidf = as.numeric(adzuna.train$ABILITY_tfidf)
+adzuna.train$ABILITY_kwfreq = as.numeric(adzuna.train$ABILITY_kwfreq)
+adzuna.train$SALARYNORM = as.numeric(adzuna.train$SALARYNORM)
+str(adzuna.train)
+
+# Since the Title factors are too wide and I was having trouble loading them into memory I remove this column from the data set. 
+# Then, we need to break down the other categorical variables into binary columns and remove the cols that cover < than 1% of obs (i.e. remove the excess noise from the adzuna data set).
+dropIdx1 = which(names(adzuna.train) %in% c("Title"))
+adzuna = adzuna.train[,-dropIdx1]
+
+attach(adzuna)
+str(adzuna)
+
+adzunaMatrix = data.frame(model.matrix(SALARYNORM~., adzuna))
+
+# at this point we need to narrow down the Titles in the adzuna data set.
+
+tempDf = adzunaMatrix.Title
+# head(tempDf[1:5,1:40])
+vector = c()
+for (i in 3:length(tempDf)){
+  val = prop.table(table(tempDf[,i]))[[2]] < 0.01
+  vector[i] <- val
+}
+#vector
+
+# Drop the columns that do not have # obs above the 1% threshold
+incIndx = which(vector)
+Df1 = tempDf[,-incIndx]
+dim(Df1)
+
+head(Df1)
+
+# at this point i have a df for the Title binary values for the first 25% of the training data set.
+
+
+
+attach(adzuna.train)
+names(adzuna.train)
+# I use a trick here to break out the categorical variables into binary 1/0 values
+adzunaMatrix = data.frame(model.matrix(SALARYNORM~., adzuna.train))
+
+# add back the log.price variable
+adzunaMatrix = cbind(SALARYNORM,adzunaMatrix)
+adzuna = adzunaMatrix
+
+# let's also remove price so that there is no confusion as to which response variable should be used
+#dropIdx = which(names(adzuna) %in% c("Id","SalaryNormalized","X.Intercept.","X"))
+dropIdx = which(names(adzuna) %in% c("X.Intercept.","X","Id"))
+adzuna = adzuna[,-dropIdx]
+
+names(adzuna)
+head(adzuna,2)
+
+str(adzuna)
+
+```
+
+
+
+```{r}
+library(dplyr)
+tempDf = adzuna
+head(tempDf)
+# Lets remove the columns that only cover <1% of the observations
+vector = c()
+for (i in 1:length(tempDf)){
+  val = prop.table(table(tempDf[,i]))[[2]] < 0.01
+  vector[i] <- val
+}
+vector
+
+incIndx = which(vector)
+Df = tempDf[,-incIndx]
+dim(Df)
+
+```
+
+
+```{r}
+library(h2o)
+h2o.init()
+adzuna.train.hex <- as.h2o(adzuna.train)
+dim(adzuna.train.hex)
+
+adzuna.train.hex = adzuna.train.hex[2:5001,]
+head(adzuna.train.hex)
+dim(adzuna.train.hex)
+
+# need to break out the categories into binary values here:
+# DID THIS IN SECTION ABOVE ALREADY.
+dim(adzuna.train.hex) # 815 columns so i choose 400 nodes.
+head(adzuna.train.hex)
+
+colcount    = dim(adzuna.train.hex)[2]
+hiddencount = round(dim(adzuna.train.hex)[2]/2)
+
+# need to run the neural network with half the number of hidden nodes: 
+adzuna.train.dl <- h2o.deeplearning(x = 2:colcount, y = 1, training_frame = adzuna.train.hex, hidden=c(hiddencount))
+
+
+# make a prediction here
+predictions <- h2o.predict(adzuna.train.dl, adzuna.train.hex)
+predictions
+
+length(adzuna.train.hex$SALARYNORM)
+
+# evaluate the quality of prediction here
+adzuna.train.mse = mean((predictions-adzuna.train.hex$SALARYNORM)^2) 
+adzuna.train.mse
+
+```

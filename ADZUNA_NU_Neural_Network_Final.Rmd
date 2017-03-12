@@ -1,0 +1,146 @@
+---
+title: "H20"
+author: "Steven Futter"
+date: "2/28/2017"
+output: html_document
+---
+
+http://h2o-release.s3.amazonaws.com/h2o/rel-tverberg/5/index.html
+Useful tutorial: https://github.com/h2oai/h2o-tutorials/tree/master/tutorials/deeplearning
+
+```{r}
+# The following two commands remove any previously installed H2O packages for R.
+if ("package:h2o" %in% search()) { detach("package:h2o", unload=TRUE) }
+if ("h2o" %in% rownames(installed.packages())) { remove.packages("h2o") }
+
+# Next, we download packages that H2O depends on.
+if (! ("methods" %in% rownames(installed.packages()))) { install.packages("methods") }
+if (! ("statmod" %in% rownames(installed.packages()))) { install.packages("statmod") }
+if (! ("stats" %in% rownames(installed.packages()))) { install.packages("stats") }
+if (! ("graphics" %in% rownames(installed.packages()))) { install.packages("graphics") }
+if (! ("RCurl" %in% rownames(installed.packages()))) { install.packages("RCurl") }
+if (! ("jsonlite" %in% rownames(installed.packages()))) { install.packages("jsonlite") }
+if (! ("tools" %in% rownames(installed.packages()))) { install.packages("tools") }
+if (! ("utils" %in% rownames(installed.packages()))) { install.packages("utils") }
+
+```
+
+Note that the data_preparation.R file is where Jun's data set is altered for the Neural Net. Changes of note:
+ 1. Company and Title columns removed
+ 2. Remaining categorical variables were split into separate binary columns (dummy vars)
+ 3. Dummy vars covering <1% of the observations were removed from the data frame
+
+```{r}
+adzuna = read.csv('~/Dropbox/NU/ADVANCED_MODELING/ADZUNA/datasets/train_add_tfidf_keywordfreq_jun_long.csv',fileEncoding = "latin1")
+dim(adzuna) #244768  x   108
+head(adzuna)
+
+# Prep the training data
+codePath = file.path("~/Dropbox","NU","ADVANCED_MODELING","ADZUNA_NU")
+outfilePath = file.path("~/Dropbox","NU","ADVANCED_MODELING","ADZUNA","model_results")
+source(file.path(codePath,"data_preparation.R"))
+procDf = processDataPart1(adzuna) 
+dim(procDf)
+
+# Prep the testing data using 70-30 split
+smp.size = floor(0.70 * nrow(procDf))
+set.seed(2)
+train = sample(seq_len(nrow(procDf)), size = smp.size)
+test = -train
+
+adzuna.train = procDf[train,]
+adzuna.test  = procDf[-train,]
+
+dim(adzuna.train)  # 171337 x 124
+dim(adzuna.test)   # 73431  x 124
+```
+
+
+```{r}
+library(h2o)
+h2o.init()
+adzuna.train.hex <- as.h2o(adzuna.train)
+adzuna.test.hex  <- as.h2o(adzuna.test)
+
+# Training: For some reason when i run as.h2o a new line gets added in row 1
+dim(adzuna.train)
+dim(adzuna.train.hex) # 124 columns so i choose 62 nodes.
+adzuna.train.hex = adzuna.train.hex[2:nrow(adzuna.train.hex),]
+head(adzuna.train.hex)
+colcount    = dim(adzuna.train.hex)[2]
+hiddencount = round(dim(adzuna.train.hex)[2]/2)  # need to run the neural network with half as many hidden nodes as input nodes
+adzuna.train.dl <- h2o.deeplearning(x = 2:colcount, y = 1, training_frame = adzuna.train.hex, hidden=c(hiddencount), variable_importances = TRUE)
+summary(adzuna.train.dl)
+
+# Testing: As above for the training data. Line added from as.h2o needs to be removed from row 1. 
+dim(adzuna.test)
+dim(adzuna.test.hex) # 124 columns so i choose 62 nodes.
+adzuna.test.hex = adzuna.test.hex[2:nrow(adzuna.test.hex),]  
+
+# make a prediction here
+predictions <- h2o.predict(adzuna.train.dl, adzuna.train.hex)
+predictions
+
+predictions.test <- h2o.predict(adzuna.train.dl, adzuna.test.hex)
+predictions.test
+
+# TRAINING: evaluate the quality of prediction here
+adzuna.train.mse = mean((predictions-adzuna.train.hex$SALARYNORM)^2) 
+adzuna.train.mse         # 2353728 MSE
+
+# TESTING: evaluate the quality of the prediction using the test data set:
+adzuna.test.mse = mean((predictions.test-adzuna.test.hex$SALARYNORM)^2) 
+adzuna.test.mse          # 2417711 MSE
+
+# EXPORT THE DATA
+dfExport = as.data.frame(h2o.cbind(predictions.test,adzuna.test.hex))
+class(dfExport)
+head(dfExport)
+write.csv(dfExport, file.path(outfilePath,'test_file2.csv'))
+
+# RETRIEVE VARIABLE IMPORTANCES
+h2o.varimp(adzuna.train.dl)  # need to figure out how to create deviance and var importance plots in same manner as working group.
+```
+
+
+```{r}
+# Function that returns Root Mean Squared Error
+rmse <- function(error)
+{
+    sqrt(mean(error^2))
+}
+
+mse <- function(error)
+{
+  mean(error^2)
+}
+
+# Function that returns Mean Absolute Error
+mae <- function(error)
+{
+    mean(abs(error))
+}
+ 
+r2 <- function(actual,predict){
+  1 - (sum((actual-predict )^2)/sum((actual-mean(actual))^2))
+}
+ 
+# Calculate training error
+error <- predictions-adzuna.train.hex$SALARYNORM
+rmse(error)   #1534.187
+mse(error)    #2353728
+mae(error)    #1178.067
+r2(adzuna.train.hex$SALARYNORM,predictions)   #actual, predicted      #0.5771862
+#install.packages('msaenet')
+require(msaenet)
+msaenet.rmsle(adzuna.train.hex$SALARYNORM,predictions)   # NaN calculated. Need to figure out why. 
+
+# Calculate testing error
+test.error <- predictions.test-adzuna.test.hex$SALARYNORM
+rmse(test.error)   #1554.899
+mse(test.error)    #2417711
+mae(test.error)    #1183.093
+r2(adzuna.test.hex$SALARYNORM,predictions.test) #actual, predicted    #0.5657948
+msaenet.rmsle(adzuna.test.hex$SALARYNORM,predictions.test)   # NaN calculated. Need to figure out why. 
+
+```
